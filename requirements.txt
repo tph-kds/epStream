@@ -1,0 +1,7 @@
+apache-airflow
+# apache-flink
+kafka-python
+requests
+opentelemetry-sdk 
+opentelemetry-exporter-otlp
+TikTokLive
