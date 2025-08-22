@@ -191,13 +191,13 @@ The crawler pushes comments → Kafka → Flink → PostgreSQL/Elasticsearch.
 
 Future enhancements planned for the project include:
 
-    - [ ] Multilingual Model Integration: Add support for sentiment and emotion analysis in multiple languages.
+- [ ] Multilingual Model Integration: Add support for sentiment and emotion analysis in multiple languages.
 
-    - [ ] Real-Time Anomaly Detection: Implement algorithms to automatically detect unusual events, such as coordinated spam or sudden spikes in negative sentiment.
+- [ ] Real-Time Anomaly Detection: Implement algorithms to automatically detect unusual events, such as coordinated spam or sudden spikes in negative sentiment.
 
-    - [ ] Kubernetes Deployment: Create Helm charts and configurations for deploying the pipeline on a Kubernetes cluster for enhanced scalability and resilience.
+- [ ] Kubernetes Deployment: Create Helm charts and configurations for deploying the pipeline on a Kubernetes cluster for enhanced scalability and resilience.
 
-    - [ ] Advanced Analytics: Introduce topic modeling and named entity recognition (NER) to extract deeper insights from the comment stream.
+- [ ] Advanced Analytics: Introduce topic modeling and named entity recognition (NER) to extract deeper insights from the comment stream.
 
 ---
 
@@ -205,6 +205,7 @@ Future enhancements planned for the project include:
 Contributions are welcome! If you have an idea for an improvement or have found a bug, please feel free to open an issue or submit a pull request. We appreciate all contributions, from bug reports to new features.
 
 Thank you to all the contributors who have invested their time in this project.
+
 ---
 
 ## ⚖️ License
