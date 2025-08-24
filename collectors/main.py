@@ -1,59 +1,68 @@
+import os, json, time, uuid
 
-from TikTokLive import TikTokLiveClient
+from datetime import datetime, timezone
+from dotenv import load_dotenv
+from kafka import KafkaProducer
+from schema import CommentSchema
 
-from TikTokLive.events import (
-    ConnectEvent, 
-    CommentEvent, 
-    LikeEvent, 
-    GiftEvent, 
-    FollowEvent, 
-    ShareEvent, 
-    ViewerCountUpdateEvent
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+
+load_dotenv()
+trace.set_tracer_provider(TracerProvider())
+span_prossesor = BatchSpanProcessor(
+    OTLPSpanExporter(endpoint=os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")),
+    in_secure=True,
 )
 
-# Create the client
-client: TikTokLiveClient = TikTokLiveClient(unique_id="@kslow21")
+trace.get_tracer_provider().add_span_processor(span_prossesor)
+tracer = trace.get_tracer(os.getenv("OTEL_SERVICE_NAME", "tiktok-collector"))
+
+BROKER = os.getenv("KAFKA_BROKER", "localhost:9092")
+TOPIC = os.getenv("KAFKA_TOPIC", "tiktok_comments")
+
+producer = KafkaProducer(
+    bootstrap_servers = BROKER,
+    value_serializer = lambda v: json.dumps(v, ensure_ascii=False).encode("utf-8"),
+)
+
+def mock_fetch_comments():
+    comments_data = []
+    return [{
+        "comment_id": str(uuid.uuid4()),
+        "stream_id": "stream-001",
+        "username": "user123",
+        "text": "This live is awesome!",
+        "ts_event_utc": datetime.now(timezone.utc).isoformat()
+    }]
 
 
-# Listen to an event with a decorator!
-@client.on(ConnectEvent)
-async def on_connect(event: ConnectEvent):
-    print(f"Connected to @{event.unique_id} (Room ID: {client.room_id}")
+
+def main():
+    while True:
+        with tracer.start_as_current_span("fetch_comments"):
+            comments = mock_fetch_comments()
+            for comment in comments:
+                c = CommentSchema(**comment)
+                producer.send(TOPIC, value=c.model_dump())
+        producer.flush()
+        time.sleep(2)
 
 
-# Or, add it manually via "client.add_listener()"
-async def on_comment(event: CommentEvent) -> None:
-    print(f"{event.user.nickname} -> {event.comment}")
-
-@client.on("gift")
-async def on_gift(event: GiftEvent):
-    print(f"{event.user.uniqueId} sent a {event.gift.gift_id}!" )
-    for giftInfo in client.available_gifts:
-        if giftInfo["id"] == event.gift.gift_id:
-            print(f"Name: {giftInfo["name"]} - Image: {giftInfo["image"]["url_list"][0]} - Diamond: {giftInfo["diamond_count"]}")
-
-@client.on("like")
-async def on_like(event: LikeEvent):
-    print(f"{event.user.uniqueId} has liked the stream {event.likeCount} times, there is now {event.totalLikeCount} total likes!")
-
-
-@client.on("follow")
-async def on_follow(event: FollowEvent):
-    print(f"{event.user.uniqueId} followed the streamer")
-
-@client.on("share")
-async def on_share(event: ShareEvent):
-    print(f"{event.user.uniqueId} shared the streamer!")
-
-
-@client.on("viewer_count_update")
-async def on_share(event: ViewerCountUpdateEvent):
-    print(f"Received a new viewer count: {event.viewerCount}")
-
-
-client.add_listener(CommentEvent, on_comment)
-
-if __name__ == '__main__':
-    # Run the client and block the main thread
-    # await client.start() to run non-blocking
-    client.run()
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("Collector stopped by user.")
+    finally:
+        producer.close()
+        print("Kafka producer closed.")
+        span_prossesor.shutdown()
+        print("Span processor shutdown.")
+        trace.get_tracer_provider().shutdown()
+        print("Tracer provider shutdown.")
+        print("OpenTelemetry shutdown complete.")
+        print("Exiting collector.")
+        
