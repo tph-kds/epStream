@@ -1,0 +1,1 @@
+curl -X GET "http://localhost:9200/comments_logs/_search?pretty"

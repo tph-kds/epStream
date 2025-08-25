@@ -1,0 +1,1 @@
+docker exec -it postgres psql -U eps -d eps -c "SELECT * FROM test_table LIMIT 10;"

@@ -207,6 +207,7 @@ marimo/_lsp/
 __marimo__/
 
 
-tests/docker-compose.yaml
+tests/docker-compose.yml
 tests/test_docker-compose.yaml
 **/note.md
+packages/

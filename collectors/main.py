@@ -32,9 +32,12 @@ def mock_fetch_comments():
     comments_data = []
     return [{
         "comment_id": str(uuid.uuid4()),
+        "platform": "tiktok",
         "stream_id": "stream-001",
-        "username": "user123",
+        "user_id": "utest-" + str(uuid.uuid4())[:8],
+        "username": "user_test__" + str(uuid.uuid4())[:5],
         "text": "This live is awesome!",
+        "language": "en",
         "ts_event_utc": datetime.now(timezone.utc).isoformat()
     }]
 

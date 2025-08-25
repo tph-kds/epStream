@@ -54,6 +54,9 @@ x-airflow-common:
   # and uncomment the "build" line below, Then run `docker-compose build` to build the images.
   image: ${AIRFLOW_IMAGE_NAME:-extending_airflow:latest}
   # build: .
+  build:
+    context: .
+    dockerfile: ./dockers/airflow/Dockerfile
   environment:
     &airflow-common-env
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
@@ -331,7 +334,7 @@ services:
     container_name: broker
     depends_on: 
       zookeeper:
-        condition: service_healhty
+        condition: service_healthy
     ports: 
       - "9092:9092"
       - "9101:9101"
@@ -376,7 +379,7 @@ services:
 
 
   elasticsearch:
-    iamge: docker.elastic.co/elasticsearch/elasticseach:latest
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.1.2
     container_name: es-container
     environment:
       - xpack.security.enabled=false
@@ -389,7 +392,7 @@ services:
       - es_data:/usr/share/elasticsearch/data
 
   kibana:
-    image: docker.elastic.co/kibana/kibana:latest
+    image: docker.elastic.co/kibana/kibana:9.1.2
     container_name: kibana-container
     environment:
       - ELASTICSEARCH_HOSTS=http://es-container:9200
@@ -405,29 +408,29 @@ services:
     hostname: flink_jm
     container_name: flink_jm
     build:
-      context: ./pyflink
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./dockers/flink/Dockerfile
     ports:
-      - "8081:8081"
+      - "8082:8082"
     environment:
       - |
         FLINK_PROPERTIES=jobmanager.rpc.address: flink-jobmanager
     command: jobmanager
     volumes:
-      - ./docker/flink/lib:/opt/flink/lib
+      - ./dockers/flink/lib:/opt/flink/lib
       - ./processors:/opt/flink/processors
     depends_on: 
       - zookeeper
-      - kafka
+      - broker
     
   flink-taskmanager:
     hostname: flink_tm
     container_name: flink_tm
     build:
-      context: ./pyflink
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./dockers/flink/Dockerfile
     depends_on:
-      - flink-jm
+      - flink-jobmanager
     command: taskmanager
     scale: 1
     environment:
@@ -435,7 +438,7 @@ services:
         FLINK_PROPERTIES=jobmanager.rpc.address: flink-jobmanager
         taskmanager.numberOfTaskSlots: 2
     volumes:
-      - ./docker/flink/lib:/opt/flink/lib
+      - ./dockers/flink/lib:/opt/flink/lib
       - ./processors:/opt/flink/processors
   
 
@@ -443,7 +446,7 @@ services:
     image: prom/prometheus:latest
     container_name: prometheus
     volumes:
-      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     ports:
       - "9090:9090"
   
@@ -456,8 +459,8 @@ services:
   otel-collector:
     image: otel/opentelemetry-collector:latest
     volumes:
-      - ./monitoring/otel-collector-config.yaml:/etc/otelcol/config.yaml:ro
-    command: [ "--config=/etc/otelcol/config.yaml" ]
+      - ./monitoring/otel/collector_config.yml:/etc/otelcol/config.yml:ro
+    command: [ "--config=/etc/otelcol/config.yml" ]
     ports: 
       - "4317:4317"  # OTLP gRPC
       - "4318:4318"  # OTLP HTTP

@@ -2,13 +2,26 @@ FROM apache/airflow:latest
 
 # Cài thêm provider & lib cần cho task Python
 USER root
-RUN apt-get update && apt-get install -y curl jq netcat && rm -rf /var/lib/apt/lists/*
+RUN apt-get update -y && \
+    apt-get install -y --no-install-recommends \
+        curl \
+        jq \
+        netcat-openbsd && \
+    rm -rf /var/lib/apt/lists/*
 
 USER airflow
 # Providers (nếu cần DockerOperator hoặc Kafka, HTTP…)
 COPY requirements.txt /requirements.txt
-RUN pip install --user  --upgrade pip 
-RUN pip install --no-cache-dir --user -r /requirements.txt
+# RUN pip install --user  --upgrade pip 
+# RUN pip install --no-cache-dir --user -r /requirements.txt
+# RUN pip install --no-cache-dir -r /requirements.txt
+# Nâng cấp pip, setuptools, wheel để tránh lỗi build
+# Cài Airflow trước với version cố định
+RUN pip install apache-airflow==3.0.4 --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-3.0.4/constraints-3.12.txt"
+
+# Sau đó mới cài requirements khác
+COPY requirements.txt .
+RUN pip install -r requirements.txt --no-cache-dir
 
 
 
