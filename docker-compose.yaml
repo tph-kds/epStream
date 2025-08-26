@@ -76,6 +76,7 @@ x-airflow-common:
     _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-}
     # The following line can be used to set a custom config file, stored in the local config folder
     AIRFLOW_CONFIG: '/opt/airflow/config/airflow.cfg'
+    
   volumes:
     - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
     - ${AIRFLOW_PROJ_DIR:-.}/logs:/opt/airflow/logs
@@ -86,10 +87,16 @@ x-airflow-common:
     &airflow-common-depends-on
     postgres:
       condition: service_healthy
+  networks: 
+    - bridge
 
 
 networks:
   bridge:
+    driver: bridge
+  kafka-net:
+    driver: bridge
+  observability:
     driver: bridge
 
 services:
@@ -119,7 +126,7 @@ services:
     ports:
       - "8080:8080"
     healthcheck:
-      test: ["CMD", "curl", "--fail", "http://localhost:8080/api/v2/version"]
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -129,6 +136,8 @@ services:
       <<: *airflow-common-depends-on
       airflow-init:
         condition: service_completed_successfully
+    networks:
+    - bridge
 
   airflow-scheduler:
     <<: *airflow-common
@@ -160,30 +169,30 @@ services:
       airflow-init:
         condition: service_completed_successfully
 
-  airflow-worker:
-    <<: *airflow-common
-    command: celery worker
-    healthcheck:
-      # yamllint disable rule:line-length
-      test:
-        - "CMD-SHELL"
-        - 'celery --app airflow.providers.celery.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}" || celery --app airflow.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}"'
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
-    environment:
-      <<: *airflow-common-env
-      # Required to handle warm shutdown of the celery workers properly
-      # See https://airflow.apache.org/docs/docker-stack/entrypoint.html#signal-propagation
-      DUMB_INIT_SETSID: "0"
-    restart: always
-    depends_on:
-      <<: *airflow-common-depends-on
-      airflow-apiserver:
-        condition: service_healthy
-      airflow-init:
-        condition: service_completed_successfully
+  # airflow-worker:
+  #   <<: *airflow-common
+  #   command: local worker
+  #   healthcheck:
+  #     # yamllint disable rule:line-length
+  #     test:
+  #       - "CMD-SHELL"
+  #       - 'celery --app airflow.providers.celery.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}" || celery --app airflow.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}"'
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 5
+  #     start_period: 30s
+  #   environment:
+  #     <<: *airflow-common-env
+  #     # Required to handle warm shutdown of the celery workers properly
+  #     # See https://airflow.apache.org/docs/docker-stack/entrypoint.html#signal-propagation
+  #     DUMB_INIT_SETSID: "0"
+  #   restart: always
+  #   depends_on:
+  #     <<: *airflow-common-depends-on
+  #     airflow-apiserver:
+  #       condition: service_healthy
+  #     airflow-init:
+  #       condition: service_completed_successfully
 
   airflow-triggerer:
     <<: *airflow-common
@@ -208,79 +217,37 @@ services:
       - -c
       - |
         if [[ -z "${AIRFLOW_UID}" ]]; then
-          echo
           echo -e "\033[1;33mWARNING!!!: AIRFLOW_UID not set!\e[0m"
-          echo "If you are on Linux, you SHOULD follow the instructions below to set "
-          echo "AIRFLOW_UID environment variable, otherwise files will be owned by root."
-          echo "For other operating systems you can get rid of the warning with manually created .env file:"
-          echo "    See: https://airflow.apache.org/docs/apache-airflow/stable/howto/docker-compose/index.html#setting-the-right-airflow-user"
-          echo
           export AIRFLOW_UID=$$(id -u)
         fi
-        one_meg=1048576
-        mem_available=$$(($$(getconf _PHYS_PAGES) * $$(getconf PAGE_SIZE) / one_meg))
-        cpus_available=$$(grep -cE 'cpu[0-9]+' /proc/stat)
-        disk_available=$$(df / | tail -1 | awk '{print $$4}')
-        warning_resources="false"
-        if (( mem_available < 4000 )) ; then
-          echo
-          echo -e "\033[1;33mWARNING!!!: Not enough memory available for Docker.\e[0m"
-          echo "At least 4GB of memory required. You have $$(numfmt --to iec $$((mem_available * one_meg)))"
-          echo
-          warning_resources="true"
-        fi
-        if (( cpus_available < 2 )); then
-          echo
-          echo -e "\033[1;33mWARNING!!!: Not enough CPUS available for Docker.\e[0m"
-          echo "At least 2 CPUs recommended. You have $${cpus_available}"
-          echo
-          warning_resources="true"
-        fi
-        if (( disk_available < one_meg * 10 )); then
-          echo
-          echo -e "\033[1;33mWARNING!!!: Not enough Disk space available for Docker.\e[0m"
-          echo "At least 10 GBs recommended. You have $$(numfmt --to iec $$((disk_available * 1024 )))"
-          echo
-          warning_resources="true"
-        fi
-        if [[ $${warning_resources} == "true" ]]; then
-          echo
-          echo -e "\033[1;33mWARNING!!!: You have not enough resources to run Airflow (see above)!\e[0m"
-          echo "Please follow the instructions to increase amount of resources available:"
-          echo "   https://airflow.apache.org/docs/apache-airflow/stable/howto/docker-compose/index.html#before-you-begin"
-          echo
-        fi
-        echo
-        echo "Creating missing opt dirs if missing:"
-        echo
-        mkdir -v -p /opt/airflow/{logs,dags,plugins,config}
-        echo
+
+        echo "Creating missing opt dirs..."
+        mkdir -vp /opt/airflow/{logs,dags,plugins,config}
+        chown -R "${AIRFLOW_UID}:0" /opt/airflow/
+
+        echo "Waiting for Postgres..."
+        until pg_isready -h postgres -U airflow; do
+          >&2 echo "Postgres is unavailable - sleeping"
+          sleep 2
+        done
+        echo "Postgres is up!"
+
         echo "Airflow version:"
         /entrypoint airflow version
-        echo
-        echo "Files in shared volumes:"
-        echo
-        ls -la /opt/airflow/{logs,dags,plugins,config}
-        echo
-        echo "Running airflow config list to create default config file if missing."
-        echo
-        /entrypoint airflow config list >/dev/null
-        echo
-        echo "Files in shared volumes:"
-        echo
-        ls -la /opt/airflow/{logs,dags,plugins,config}
-        echo
-        echo "Change ownership of files in /opt/airflow to ${AIRFLOW_UID}:0"
-        echo
-        chown -R "${AIRFLOW_UID}:0" /opt/airflow/
-        echo
-        echo "Change ownership of files in shared volumes to ${AIRFLOW_UID}:0"
-        echo
-        chown -v -R "${AIRFLOW_UID}:0" /opt/airflow/{logs,dags,plugins,config}
-        echo
-        echo "Files in shared volumes:"
-        echo
-        ls -la /opt/airflow/{logs,dags,plugins,config}
+
+        echo "Running DB migrations..."
+        /entrypoint airflow db upgrade
+
+        echo "Creating admin user..."
+        /entrypoint airflow users create \
+          --username "${_AIRFLOW_WWW_USER_USERNAME:-airflow}" \
+          --password "${_AIRFLOW_WWW_USER_PASSWORD:-airflow}" \
+          --firstname Airflow \
+          --lastname Admin \
+          --role Admin \
+          --email admin@example.com
+
+        echo "Airflow init completed!"
 
     # yamllint enable rule:line-length
     environment:
@@ -309,7 +276,7 @@ services:
   
 
   zookeeper:
-    image: confluentinc/cp-zookeeper:latest
+    image: confluentinc/cp-zookeeper:7.5.3
     hostname: zookeeper
     container_name: zookeeper
     ports:
@@ -324,12 +291,10 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      bridge:
-        aliases:
-          - zookeeper
+      - kafka-net
     
   broker:
-    image: confluentinc/cp-kafka:latest
+    image: confluentinc/cp-kafka:7.5.3
     hostname: broker
     container_name: broker
     depends_on: 
@@ -358,25 +323,24 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      bridge:
-        aliases:
-          - broker
+      - kafka-net
     volumes: [ "kafka-data:/confluentinc/kafka/"]
 
   schema-registry:
-    image: confluentinc/cp-schema-registry:latest
+    image: confluentinc/cp-schema-registry:7.5.3
     hostname: schema-registry
     depends_on:
       - broker
     ports:
-      - "8081:8081"
+      - "8084:8084"
     environment:
       SCHEMA_REGISTRY_HOST_NAME: schema-registry
       SCHEMA_REGISTRY_KAFKASTORE_CONNECTION_URL: 'zookeeper:2181'
-      SCHEMA_REGISTRY_LISTENERS: http://schema-registry:8081
+      SCHEMA_REGISTRY_LISTENERS: http://schema-registry:8084
       SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: PLAINTEXT://broker:29092,PLAINTEXT_INTERNAL://localhost:9092
       SCHEMA_REGISTRY_DEBUG: 'true'
-
+    networks:
+      - kafka-net
 
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:9.1.2
@@ -384,6 +348,7 @@ services:
     environment:
       - xpack.security.enabled=false
       - discovery.type=single-node
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g
     ports:
       - 9200:9200
     networks:
@@ -405,27 +370,37 @@ services:
 
 
   flink-jobmanager:
-    hostname: flink_jm
-    container_name: flink_jm
+    hostname: flink-jobmanager
+    container_name: flink-jobmanager
     build:
       context: .
       dockerfile: ./dockers/flink/Dockerfile
     ports:
-      - "8082:8082"
-    environment:
+      - "8081:8081" # for Flink Web UI
+      # - "8082:8082" # for Flink REST API
+      # - "6123:6123" # for task manager RPC
+      - "9249:9249" # for Prometheus metrics
+      # - "9250:9250"
+    environment: 
       - |
-        FLINK_PROPERTIES=jobmanager.rpc.address: flink-jobmanager
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: flink-jobmanager
+        metrics.reporters: prom
+        metrics.reporter.prom.factory.class: org.apache.flink.metrics.prometheus.PrometheusReporterFactory
+        metrics.reporter.prom.port: 9249
     command: jobmanager
-    volumes:
-      - ./dockers/flink/lib:/opt/flink/lib
-      - ./processors:/opt/flink/processors
+    # volumes:
+    #   - ./dockers/flink/lib:/opt/flink/lib
+    #   - ./processors:/opt/flink/processors
     depends_on: 
       - zookeeper
       - broker
+    networks:
+      - kafka-net
     
   flink-taskmanager:
-    hostname: flink_tm
-    container_name: flink_tm
+    hostname: flink-taskmanager
+    container_name: flink-taskmanager
     build:
       context: .
       dockerfile: ./dockers/flink/Dockerfile
@@ -435,11 +410,17 @@ services:
     scale: 1
     environment:
       - |
-        FLINK_PROPERTIES=jobmanager.rpc.address: flink-jobmanager
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: flink-jobmanager
         taskmanager.numberOfTaskSlots: 2
-    volumes:
-      - ./dockers/flink/lib:/opt/flink/lib
-      - ./processors:/opt/flink/processors
+        metrics.reporters: prom
+        metrics.reporter.prom.factory.class: org.apache.flink.metrics.prometheus.PrometheusReporterFactory
+        metrics.reporter.prom.port: 9249
+    networks:
+      - kafka-net
+    # volumes:
+    #   - ./dockers/flink/lib:/opt/flink/lib
+    #   - ./processors:/opt/flink/processors
   
 
   prometheus:
@@ -449,12 +430,23 @@ services:
       - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     ports:
       - "9090:9090"
-  
+    depends_on:
+      - flink-jobmanager
+      - flink-taskmanager
+    networks: 
+      - kafka-net
+      - observability
+
   grafana:
     image: grafana/grafana:latest
     ports: ["3000:3000"]
     volumes:
       - ./monitoring/grafana:/etc/grafana/provisioning
+    networks: 
+      - observability
+      - kafka-net
+    depends_on:
+      - prometheus
 
   otel-collector:
     image: otel/opentelemetry-collector:latest
@@ -464,6 +456,9 @@ services:
     ports: 
       - "4317:4317"  # OTLP gRPC
       - "4318:4318"  # OTLP HTTP
+    networks: 
+      - observability
+      - kafka-net
 
 volumes:
   postgres-db-volume:

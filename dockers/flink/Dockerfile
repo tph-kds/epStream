@@ -1,4 +1,4 @@
-FROM flink:scala_2.12-java21
+FROM flink:2.1.0-scala_2.12-java21
 
 USER root
 

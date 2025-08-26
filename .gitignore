@@ -211,3 +211,6 @@ tests/docker-compose.yml
 tests/test_docker-compose.yaml
 **/note.md
 packages/
+logs/
+plugins/
+dags/

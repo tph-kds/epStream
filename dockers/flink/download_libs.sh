@@ -6,22 +6,19 @@ echo "🔽 Downloading Flink connectors & drivers..."
 # Move into Flink lib folder
 cd /opt/flink/lib
 
-if [ ! -f flink-connector-jdbc-3.3.0-1.20.jar ]; then
-  # JDBC Connector
-  wget -q -O flink-connector-jdbc-3.3.0-1.20.jar \
-    https://repo1.maven.org/maven2/org/apache/flink/flink-connector-jdbc/3.3.0-1.20/flink-connector-jdbc-3.3.0-1.20.jar
+if [ ! -f flink-connector-jdbc-3.2.0-1.19.jar ]; then
+  wget -q -O flink-connector-jdbc-3.2.0-1.19.jar \
+    https://repo1.maven.org/maven2/org/apache/flink/flink-connector-jdbc/3.2.0-1.19/flink-connector-jdbc-3.2.0-1.19.jar
 fi
 
 if [ ! -f postgresql-42.7.7.jar ]; then
-  # PostgreSQL Driver
   wget -q -O postgresql-42.7.7.jar \
     https://repo1.maven.org/maven2/org/postgresql/postgresql/42.7.7/postgresql-42.7.7.jar
 fi
 
-if [ ! -f flink-connector-kafka-4.0.1-2.0.jar ]; then
-  # Kafka Connector
-  wget -q -O flink-connector-kafka-4.0.1-2.0.jar \
-    https://repo1.maven.org/maven2/org/apache/flink/flink-connector-kafka/4.0.1-2.0/flink-connector-kafka-4.0.1-2.0.jar
+if [ ! -f flink-connector-kafka-3.2.0-1.19.jar ]; then
+  wget -q -O flink-connector-kafka-3.2.0-1.19.jar \
+    https://repo1.maven.org/maven2/org/apache/flink/flink-connector-kafka/3.2.0-1.19/flink-connector-kafka-3.2.0-1.19.jar
 fi
 
 echo "✅ All JARs downloaded into /opt/flink/lib/"
