@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS comments (
     ts_event_utc TIMESTAMP WITH TIME ZONE NOT NULL,
     sentiment_score FLOAT,
     sentiment_label VARCHAR(20),
-    igested_at_utc TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    ingested_at_utc TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
 

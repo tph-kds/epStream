@@ -12,20 +12,28 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
 load_dotenv()
 trace.set_tracer_provider(TracerProvider())
-span_prossesor = BatchSpanProcessor(
-    OTLPSpanExporter(endpoint=os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")),
-    in_secure=True,
+otlp_exporter = OTLPSpanExporter(
+    endpoint=os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "otel-collector:4317"),
+    insecure=True  # ✅ để kết nối gRPC không TLS
 )
 
-trace.get_tracer_provider().add_span_processor(span_prossesor)
+span_processor = BatchSpanProcessor(otlp_exporter)
+
+trace.get_tracer_provider().add_span_processor(span_processor)
 tracer = trace.get_tracer(os.getenv("OTEL_SERVICE_NAME", "tiktok-collector"))
 
-BROKER = os.getenv("KAFKA_BROKER", "localhost:9092")
+BROKER = os.getenv("KAFKA_BROKER", "broker:29092")
 TOPIC = os.getenv("KAFKA_TOPIC", "tiktok_comments")
+
+
+def json_serializer(obj):
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    raise TypeError(f"Type {type(obj)} not serializable")
 
 producer = KafkaProducer(
     bootstrap_servers = BROKER,
-    value_serializer = lambda v: json.dumps(v, ensure_ascii=False).encode("utf-8"),
+    value_serializer = lambda v: json.dumps(v, ensure_ascii=False, default=json_serializer).encode("utf-8"),
 )
 
 def mock_fetch_comments():
@@ -62,7 +70,7 @@ if __name__ == "__main__":
     finally:
         producer.close()
         print("Kafka producer closed.")
-        span_prossesor.shutdown()
+        span_processor.shutdown()
         print("Span processor shutdown.")
         trace.get_tracer_provider().shutdown()
         print("Tracer provider shutdown.")

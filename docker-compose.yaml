@@ -78,10 +78,17 @@ x-airflow-common:
     AIRFLOW_CONFIG: '/opt/airflow/config/airflow.cfg'
     
   volumes:
-    - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
-    - ${AIRFLOW_PROJ_DIR:-.}/logs:/opt/airflow/logs
-    - ${AIRFLOW_PROJ_DIR:-.}/config:/opt/airflow/config
-    - ${AIRFLOW_PROJ_DIR:-.}/plugins:/opt/airflow/plugins
+    - ${AIRFLOW_PROJ_DIR:-.}/airflow/dags:/opt/airflow/dags
+    - ${AIRFLOW_PROJ_DIR:-.}/airflow/logs:/opt/airflow/logs
+    - ${AIRFLOW_PROJ_DIR:-.}/airflow/config:/opt/airflow/config
+    - ${AIRFLOW_PROJ_DIR:-.}/airflow/plugins:/opt/airflow/plugins
+    - ${AIRFLOW_PROJ_DIR:-.}/collectors:/opt/airflow/collectors
+    - ${AIRFLOW_PROJ_DIR:-.}/storages/elasticsearch/mapping.json:/opt/elasticsearch/mapping.json
+    - ${AIRFLOW_PROJ_DIR:-.}/processors:/opt/flink/processors
+    - ${AIRFLOW_PROJ_DIR:-.}/storages/postgres:/opt/database
+
+
+
   user: "${AIRFLOW_UID:-50000}:0"
   depends_on:
     &airflow-common-depends-on
@@ -89,6 +96,8 @@ x-airflow-common:
       condition: service_healthy
   networks: 
     - bridge
+    - kafka-net
+    - observability
 
 
 networks:
@@ -111,6 +120,7 @@ services:
       POSTGRES_DB: airflow
     volumes:
       - postgres-db-volume:/var/lib/postgresql/data
+      - ./storages/postgres:/opt/database
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "airflow"]
       interval: 10s
@@ -119,6 +129,8 @@ services:
     restart: always
     networks:
       - bridge
+      - kafka-net
+      - observability
 
   airflow-apiserver:
     <<: *airflow-common
@@ -138,6 +150,8 @@ services:
         condition: service_completed_successfully
     networks:
     - bridge
+    - kafka-net
+    - observability
 
   airflow-scheduler:
     <<: *airflow-common
@@ -348,19 +362,21 @@ services:
     environment:
       - xpack.security.enabled=false
       - discovery.type=single-node
-      - ES_JAVA_OPTS=-Xms1g -Xmx1g
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
     ports:
       - 9200:9200
     networks:
       - bridge
     volumes:
       - es_data:/usr/share/elasticsearch/data
+      # - ./dockers/elasticsearch/mapping.json:/opt/elasticsearch/mapping.json
 
   kibana:
     image: docker.elastic.co/kibana/kibana:9.1.2
     container_name: kibana-container
     environment:
       - ELASTICSEARCH_HOSTS=http://es-container:9200
+      - xpack.encryptedSavedObjects.encryptionKey=changemechangemechangemechangeme
     depends_on:
       - elasticsearch
     ports:
@@ -448,6 +464,15 @@ services:
     depends_on:
       - prometheus
 
+  # tempo:
+  #   image: grafana/tempo:latest
+  #   container_name: tempo
+  #   ports:
+  #     - "3200:3200"  # Tempo API
+  #   networks:
+  #     - observability
+
+
   otel-collector:
     image: otel/opentelemetry-collector:latest
     volumes:
@@ -456,6 +481,7 @@ services:
     ports: 
       - "4317:4317"  # OTLP gRPC
       - "4318:4318"  # OTLP HTTP
+      - "9464:9464"  # Prometheus metrics
     networks: 
       - observability
       - kafka-net

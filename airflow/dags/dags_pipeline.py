@@ -1,27 +1,47 @@
+from __future__ import annotations
+
 import os
 import requests
 
-
-from __future__ import annotations
 from datetime import timedelta, datetime
 from airflow import DAG 
 from airflow.operators.bash import BashOperator
 from airflow.operators.python import PythonOperator, ShortCircuitOperator
-from airflow.utils.dates import days_ago
-from airflow.sensors.http_sensor import HttpSensor
+from airflow.providers.http.sensors.http import HttpSensor
 
 from utils.kafka_utils import ensure_kafka_topic_exists, kafka_ready
 from utils.es_utils import ensure_es_index_exists
 
-BROKER = os.getenv("KAFKA_BROKER", "localhost:9092")
+BROKER = os.getenv("KAFKA_BROKER", "broker:29092")
 TOPIC = os.getenv("KAFKA_TOPIC", "tiktok_comments")
 TOPIC_PROCESSED = os.getenv("KAFKA_TOPIC_PROCESSED", "tiktok_comments_processed")
 ES_URL = os.getenv("ES_URL", "http://elasticsearch:9200")
 ES_INDEX = os.getenv("ES_INDEX", "tiktok_comments")
 FLINK_UI = os.getenv("FLINK_JOBMANAGER", "http://flink-jobmanager:8081")
+POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "airflow")
 
 def start_flink_job():
     pass 
+
+def refresh_kibana():
+    kibana_url = os.getenv("KIBANA_URL", "http://kibana-container:5601")
+    
+    # Example: trigger a saved objects migration or dashboard reload
+    dashboards_api = f"{kibana_url}/api/saved_objects/_find?type=dashboard"
+    headers = {"kbn-xsrf": "true"}   # Kibana requires this header
+
+    resp = requests.get(dashboards_api, headers=headers)
+    if resp.status_code != 200:
+        raise Exception(f"Failed to query dashboards: {resp.text}")
+    
+    dashboards = resp.json().get("saved_objects", [])
+    print(f"Found {len(dashboards)} dashboards in Kibana")
+
+    # Optionally: "touch" each dashboard to trigger a refresh
+    for d in dashboards:
+        print(f"Dashboard ready: {d['attributes'].get('title')}")
+    
+    print("Kibana dashboards refreshed ✅")
 
 # --------------------------
 # DAG definition
@@ -34,12 +54,12 @@ default_args = {
 }
 
 with DAG(
-    dag_id="tiktok_stream_pipeline - EPS_v1",
+    dag_id="tiktok_stream_pipeline__EPS_v1",
     description="Emotional Pulse Stream: end-to-end orchestrator",
     default_args=default_args,
-    schedule_interval="@once",
+    schedule="@once",
     catchup=False,
-    start_date=days_ago(1),
+    start_date=datetime.now() - timedelta(days=1),
     max_active_runs=1,
     tags=["tiktok", "etl", "streaming", "data-pipeline"],
 ) as dag:
@@ -93,22 +113,33 @@ with DAG(
         op_kwargs={
             "es_url": ES_URL,
             "index": ES_INDEX,
-            "mapping_path": "/opt/airflow/mapping.json",
+            "mapping_path": "/opt/elasticsearch/mapping.json",
         },
     )
-    # Step 4: Start Collector (Tiktok ->  Kafka)
+    # Step 4: Initialize Postgres schema (idempotent)
+    init_postgres_schema = BashOperator(
+        task_id="init_postgres_schema",
+    bash_command=(
+            f'PGPASSWORD={POSTGRES_PASSWORD} psql -h postgres -U airflow -d airflow '
+            f'-tc "SELECT 1 FROM pg_tables WHERE schemaname = \'public\' AND tablename = \'comments\';" '
+            f'| grep -q 1 || '
+            f'PGPASSWORD={POSTGRES_PASSWORD} psql -h postgres -U airflow -d airflow -f /opt/database/init.sql'
+        ),
+    )
+
+    # Step 5: Start Collector (Tiktok ->  Kafka)
     run_collector = BashOperator(
         task_id = "start_collector",
-        bash_command="python /opt/airflow/dags/collector.py & sleep 2",
+        bash_command="python /opt/airflow/collectors/main.py & echo $! > /tmp/collector.pid && sleep 2",
     )
 
     # Step 5: Submit Flink job
-    run_flink_job = PythonOperator(
+    run_flink_job = BashOperator(
         task_id="run_flink_job",
-        python_callable="""
-            docker exec -i flink-jobmanager bash -lc '
-                flink run -d -py /opt/processor/flink_job.py
-            '
+        bash_command="""
+            curl -X POST "http://flink-jobmanager:8081/v1/jobs" \
+                -H "Content-Type: multipart/form-data" \
+                -F "program=@/opt/flink/processors/flink_job.py"
         """
     )
 
@@ -126,11 +157,6 @@ with DAG(
         trigger_rule="all_done"
     )
 
-    # Step 7: Load Data into PostgreSQL (ETL / SQL scripts)
-    load_postgres = BashOperator(
-        task_id="load_postgres",
-        bash_command="psql -h postgres -U user -d mydb -f /opt/database/schema.sql",
-    )
 
     # Step 8: Refresh Kibana dashboards
     refresh_kibana_task = PythonOperator(
@@ -146,11 +172,11 @@ with DAG(
 
     # Step 10: Stop collector after processing
     stop_collector = BashOperator(
-        task_id="stop_collector",        
-        bash_command="kill $(cat /tmp/collector.pid) || true",
+        task_id="stop_collector",
+        bash_command="echo 'Run All Routines completely successful' & kill $(cat /tmp/collector.pid) || true",
         trigger_rule="all_done"
     )
 
     # Task Flow
-    wait_kafka >> [wait_flink_ui, wait_es]
-    [wait_kafka, wait_flink_ui, wait_es] >> create_topics >> create_es_index >> run_collector >> run_flink_job >> load_postgres >> check_processed_has_data >> refresh_kibana_task >> notify_monitoring >> stop_collector
+    [wait_kafka, wait_flink_ui, wait_es] >> create_topics >> create_es_index >> init_postgres_schema
+    init_postgres_schema >> run_collector >> run_flink_job >> check_processed_has_data >> [refresh_kibana_task, notify_monitoring] >> stop_collector

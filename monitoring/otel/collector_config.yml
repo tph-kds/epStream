@@ -8,12 +8,21 @@ processors:
   batch:
 
 exporters:
+  prometheus:
+    endpoint: "0.0.0.0:9464"
+    tls:
+      insecure: true
   debug:
-    verbosity: detailed
+    verbosity: detailed 
+
 
 service:
   pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [prometheus, debug]
     traces:
       receivers: [otlp]
       processors: [batch]
-      exporters: [debug]
+      exporters: [prometheus, debug]
