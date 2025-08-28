@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS comments (
     user_id VARCHAR,
     username VARCHAR,
     text TEXT NOT NULL,
-    language VARCHAR(10),
+    lang VARCHAR(10),
     ts_event_utc TIMESTAMP WITH TIME ZONE NOT NULL,
     sentiment_score FLOAT,
     sentiment_label VARCHAR(20),

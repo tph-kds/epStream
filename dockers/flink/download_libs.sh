@@ -1,46 +1,35 @@
 #!/bin/bash
 set -e
 
-echo "🔽 Downloading Flink connectors & drivers..."
+FLINK_LIB_DIR="/opt/flink/lib"
 
-# Move into Flink lib folder
-cd /opt/flink/lib
+echo "🔽 Downloading Flink connectors & drivers into ${FLINK_LIB_DIR} ..."
+mkdir -p ${FLINK_LIB_DIR}
+cd ${FLINK_LIB_DIR}
 
-if [ ! -f flink-connector-jdbc-3.2.0-1.19.jar ]; then
-  wget -q -O flink-connector-jdbc-3.2.0-1.19.jar \
-    https://repo1.maven.org/maven2/org/apache/flink/flink-connector-jdbc/3.2.0-1.19/flink-connector-jdbc-3.2.0-1.19.jar
+# JDBC Connector
+if [ ! -f flink-connector-jdbc-core-4.0.0-2.0.jar ]; then
+  wget -q -O flink-connector-jdbc-core-4.0.0-2.0.jar \
+    https://repo1.maven.org/maven2/org/apache/flink/flink-connector-jdbc-core/4.0.0-2.0/flink-connector-jdbc-core-4.0.0-2.0.jar
 fi
 
+# PostgreSQL Driver
 if [ ! -f postgresql-42.7.7.jar ]; then
   wget -q -O postgresql-42.7.7.jar \
     https://repo1.maven.org/maven2/org/postgresql/postgresql/42.7.7/postgresql-42.7.7.jar
 fi
 
-if [ ! -f flink-connector-kafka-3.2.0-1.19.jar ]; then
-  wget -q -O flink-connector-kafka-3.2.0-1.19.jar \
-    https://repo1.maven.org/maven2/org/apache/flink/flink-connector-kafka/3.2.0-1.19/flink-connector-kafka-3.2.0-1.19.jar
+# Kafka Connector
+if [ ! -f flink-connector-kafka-4.0.0-2.0.jar ]; then
+  wget -q -O flink-connector-kafka-4.0.0-2.0.jar \
+    https://repo1.maven.org/maven2/org/apache/flink/flink-connector-kafka/4.0.0-2.0/flink-connector-kafka-4.0.0-2.0.jar
 fi
 
-echo "✅ All JARs downloaded into /opt/flink/lib/"
-ls -lh /opt/flink/lib/
+# Kafka Client
+if [ ! -f kafka-clients-4.0.0.jar ]; then
+  wget -q -O kafka-clients-4.0.0.jar \
+    https://repo1.maven.org/maven2/org/apache/kafka/kafka-clients/4.0.0/kafka-clients-4.0.0.jar
+fi
 
-
-
-
-
-
-# env.add_jars(
-#   f"file://{current_dir}/flink-connector-jdbc-3.3.0-1.20.jar",
-#   f"file://{current_dir}/postgresql-42.7.7.jar",
-#   f"file://{current_dir}/flink-connector-kafka-4.0.1-2.0.jar",
-# )
-
-# # How to download entire files jars
-# # # Flink Kafka Connector (4.0.1-2.0 for Flink 2.0.x)
-# wget https://repo1.maven.org/maven2/org/apache/flink/flink-connector-kafka/4.0.1-2.0/flink-connector-kafka-4.0.1-2.0.jar -P ./dockers/flink/lib/
-
-# # Flink JDBC Connector (3.3.0-1.20 for Flink 1.20.x)
-# wget https://repo1.maven.org/maven2/org/apache/flink/flink-connector-jdbc/3.3.0-1.20/flink-connector-jdbc-3.3.0-1.20.jar -P ./dockers/flink/lib/
-
-# # PostgreSQL Driver (42.7.7 là mới nhất ổn định)
-# wget https://repo1.maven.org/maven2/org/postgresql/postgresql/42.7.7/postgresql-42.7.7.jar -P ./dockers/flink/lib/
+echo "✅ All JARs are now in ${FLINK_LIB_DIR}"
+ls -lh ${FLINK_LIB_DIR}

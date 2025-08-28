@@ -86,6 +86,7 @@ x-airflow-common:
     - ${AIRFLOW_PROJ_DIR:-.}/storages/elasticsearch/mapping.json:/opt/elasticsearch/mapping.json
     - ${AIRFLOW_PROJ_DIR:-.}/processors:/opt/flink/processors
     - ${AIRFLOW_PROJ_DIR:-.}/storages/postgres:/opt/database
+    - /var/run/docker.sock:/var/run/docker.sock
 
 
 
@@ -393,8 +394,8 @@ services:
       dockerfile: ./dockers/flink/Dockerfile
     ports:
       - "8081:8081" # for Flink Web UI
-      # - "8082:8082" # for Flink REST API
-      # - "6123:6123" # for task manager RPC
+      - "8082:8082" # for Flink REST API
+      - "6123:6123" # for task manager RPC
       - "9249:9249" # for Prometheus metrics
       # - "9250:9250"
     environment: 
@@ -404,6 +405,7 @@ services:
         metrics.reporters: prom
         metrics.reporter.prom.factory.class: org.apache.flink.metrics.prometheus.PrometheusReporterFactory
         metrics.reporter.prom.port: 9249
+      - JAVA_TOOL_OPTIONS=--add-opens=java.base/java.util.concurrent.locks=ALL-UNNAMED
     command: jobmanager
     # volumes:
     #   - ./dockers/flink/lib:/opt/flink/lib
@@ -411,6 +413,12 @@ services:
     depends_on: 
       - zookeeper
       - broker
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
     networks:
       - kafka-net
     
@@ -421,7 +429,8 @@ services:
       context: .
       dockerfile: ./dockers/flink/Dockerfile
     depends_on:
-      - flink-jobmanager
+      flink-jobmanager:
+        condition: service_healthy
     command: taskmanager
     scale: 1
     environment:
@@ -432,8 +441,10 @@ services:
         metrics.reporters: prom
         metrics.reporter.prom.factory.class: org.apache.flink.metrics.prometheus.PrometheusReporterFactory
         metrics.reporter.prom.port: 9249
+      - JAVA_TOOL_OPTIONS=--add-opens=java.base/java.util.concurrent.locks=ALL-UNNAMED
     networks:
       - kafka-net
+
     # volumes:
     #   - ./dockers/flink/lib:/opt/flink/lib
     #   - ./processors:/opt/flink/processors

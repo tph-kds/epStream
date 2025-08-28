@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import psycopg2
 import os
 import requests
 
@@ -20,8 +21,33 @@ ES_INDEX = os.getenv("ES_INDEX", "tiktok_comments")
 FLINK_UI = os.getenv("FLINK_JOBMANAGER", "http://flink-jobmanager:8081")
 POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "airflow")
 
+POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "airflow")
 def start_flink_job():
     pass 
+def check_postgres_data():
+    conn = psycopg2.connect(
+        host="postgres",
+        database="airflow",
+        user="airflow",
+        password=POSTGRES_PASSWORD,
+    )
+    cur = conn.cursor()
+    cur.execute("SELECT COUNT(*) FROM comments;")
+    count = cur.fetchone()[0]
+    cur.close()
+    conn.close()
+    if count == 0:
+        raise ValueError("No data in Postgres yet!")
+    print(f"Postgres has {count} rows ✅")
+
+
+def check_es_data():
+    resp = requests.get(f"{ES_URL}/{ES_INDEX}/_count")
+    resp.raise_for_status()
+    count = resp.json()["count"]
+    if count == 0:
+        raise ValueError("No data in Elasticsearch yet!")
+    print(f"Elasticsearch has {count} documents ✅")
 
 def refresh_kibana():
     kibana_url = os.getenv("KIBANA_URL", "http://kibana-container:5601")
@@ -136,25 +162,35 @@ with DAG(
     # Step 5: Submit Flink job
     run_flink_job = BashOperator(
         task_id="run_flink_job",
-        bash_command="""
-            curl -X POST "http://flink-jobmanager:8081/v1/jobs" \
-                -H "Content-Type: multipart/form-data" \
-                -F "program=@/opt/flink/processors/flink_job.py"
-        """
+        bash_command=(
+            "docker exec flink-jobmanager "
+            "flink run -d -py /opt/flink/processors/flink_job.py"
+        ),
     )
 
-    # Step 6: Check Health-check for Elasticsearch Index (ES) (count offset)
-    check_processed_has_data = BashOperator(
-        task_id="check_processed_has_data",
-        bash_command=f"""
-          for i in {{1..30}}; do
-            docker exec -i broker kafka-run-class kafka.tools.GetOffsetShell --broker-list broker:9092 --topic {TOPIC_PROCESSED} \
-              | awk -F ':' '{{sum+=$3}} END {{print sum+0}}' | grep -v '^0$' && exit 0 || true
-            echo 'waiting processed data...'; sleep 2
-          done
-          echo 'No processed data detected' && exit 1
-        """,
-        trigger_rule="all_done"
+
+    # # Step 6: Check Health-check for Elasticsearch Index (ES) (count offset)
+    # check_processed_has_data = BashOperator(
+    #     task_id="check_processed_has_data",
+    #     bash_command=f"""
+    #       for i in {{1..30}}; do
+    #         docker exec -i broker kafka-run-class kafka.tools.GetOffsetShell --broker-list broker:9092 --topic {TOPIC_PROCESSED} \
+    #           | awk -F ':' '{{sum+=$3}} END {{print sum+0}}' | grep -v '^0$' && exit 0 || true
+    #         echo 'waiting processed data...'; sleep 2
+    #       done
+    #       echo 'No processed data detected' && exit 1
+    #     """,
+    #     trigger_rule="all_done"
+    # )
+
+    check_postgres = PythonOperator(
+        task_id="check_postgres",
+        python_callable=check_postgres_data,
+    )
+
+    check_es = PythonOperator(
+        task_id="check_es",
+        python_callable=check_es_data,
     )
 
 
@@ -178,5 +214,17 @@ with DAG(
     )
 
     # Task Flow
+   
+    # Step 1: Initialization all services 
     [wait_kafka, wait_flink_ui, wait_es] >> create_topics >> create_es_index >> init_postgres_schema
-    init_postgres_schema >> run_collector >> run_flink_job >> check_processed_has_data >> [refresh_kibana_task, notify_monitoring] >> stop_collector
+   
+    # Step 2: Start data collection and processing
+    init_postgres_schema >> run_collector >> run_flink_job
+  
+    # Step 3: check_postgres & check_es -> refresh_kibana_task & notify_monitoring
+    run_flink_job >> [check_postgres, check_es]
+    for t in [check_postgres, check_es]:
+        t >> [refresh_kibana_task, notify_monitoring]
+
+    # Step 4: stop_collector
+    [refresh_kibana_task, notify_monitoring] >> stop_collector

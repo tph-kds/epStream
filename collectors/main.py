@@ -1,4 +1,11 @@
 import os, json, time, uuid
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] - %(message)s"
+)
+logger = logging.getLogger(__name__)
 
 from datetime import datetime, timezone
 from dotenv import load_dotenv
@@ -45,19 +52,23 @@ def mock_fetch_comments():
         "user_id": "utest-" + str(uuid.uuid4())[:8],
         "username": "user_test__" + str(uuid.uuid4())[:5],
         "text": "This live is awesome!",
-        "language": "en",
+        "lang": "en",
         "ts_event_utc": datetime.now(timezone.utc).isoformat()
     }]
 
 
 
 def main():
-    while True:
+    for i in range(2):
         with tracer.start_as_current_span("fetch_comments"):
             comments = mock_fetch_comments()
             for comment in comments:
                 c = CommentSchema(**comment)
                 producer.send(TOPIC, value=c.model_dump())
+                logger.info(f"=------------------Message {i + 1}------------------=")
+                logger.info(f"Sent comment to Kafka: {c.model_dump()}")
+                logger.info(f"Current span context: {trace.get_current_span().get_span_context()}")
+
         producer.flush()
         time.sleep(2)
 

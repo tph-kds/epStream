@@ -1,4 +1,5 @@
-FROM flink:2.1.0-scala_2.12-java21
+# FROM flink:2.1.0-scala_2.12-java21
+FROM flink:2.0.0-scala_2.12-java17
 
 USER root
 
@@ -7,7 +8,7 @@ RUN apt-get clean && rm -rf /var/lib/apt/lists/* \
     && apt-get update -y -o Acquire::Retries=5 \
     && apt-get install -y --no-install-recommends \
     python3 python3-pip python3-dev \
-    openssl ca-certificates \
+    openssl ca-certificates wget curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Update CA certificates
@@ -33,9 +34,11 @@ RUN pip install --default-timeout=1000 --retries=30 --no-cache-dir \
     -r requirements.txt \
     -i https://pypi.tuna.tsinghua.edu.cn/simple --trusted-host pypi.tuna.tsinghua.edu.cn
 
-COPY dockers/flink/download_libs.sh .
-RUN chmod +x download_libs.sh && bash -x ./download_libs.sh
+# Copy and run connector download script
+COPY dockers/flink/download_libs.sh /opt/flink/download_libs.sh
+RUN chmod +x /opt/flink/download_libs.sh && bash -x /opt/flink/download_libs.sh
 
-COPY ./processors/ ./processors/
+# Copy processors (your Python code)
+COPY ./processors/ /opt/flink/processors/
 
 USER flink

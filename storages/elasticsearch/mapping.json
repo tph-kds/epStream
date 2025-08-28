@@ -6,7 +6,7 @@
             "stream_id": {"type": "keyword"},
             "username": {"type": "keyword"},
             "text": {"type": "text"},
-            "langauge": {"type": "keyword"},
+            "lang": {"type": "keyword"},
             "ts_event_utc": {"type": "date"},
             "sentiment_score": {"type": "float"},
             "sentiment_label": {"type": "keyword"},
