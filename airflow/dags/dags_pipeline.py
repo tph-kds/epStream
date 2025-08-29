@@ -164,7 +164,7 @@ with DAG(
         task_id="run_flink_job",
         bash_command=(
             "docker exec flink-jobmanager "
-            "flink run -d -py /opt/flink/processors/flink_job.py"
+            "flink run -d -py /opt/flink/processors/flink_job.py --classpath /opt/flink/lib/custom_elasticsearch_client/*"
         ),
     )
 

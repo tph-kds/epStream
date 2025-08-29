@@ -1,28 +1,13 @@
-from __future__ import annotations
-
-import os
+import os, json 
 from dotenv import load_dotenv
 from pyflink.table import EnvironmentSettings, TableEnvironment
 from pyflink.table.udf import udf
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+from pyflink.common import Configuration
 
-# ----------------------------
-# Load env variables
-# ----------------------------
+
 load_dotenv()
 
-BROKER = os.getenv("KAFKA_BROKER", "broker:29092")
-TOPIC_IN = os.getenv("KAFKA_TOPIC", "tiktok_comments")
-TOPIC_OUT = os.getenv("KAFKA_TOPIC_PROCESSED", "tiktok_comments_processed")
-POSTGRES_URL = os.getenv("POSTGRES_URL", "jdbc:postgresql://postgres:5432/airflow")
-POSTGRES_USER = os.getenv("POSTGRES_USER", "airflow")
-POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "airflow")
-ES_HOST = os.getenv("ES_HOST", "http://elasticsearch:9200")
-ES_INDEX = os.getenv("ES_INDEX", "comments")
-
-# ----------------------------
-# Sentiment UDFs
-# ----------------------------
 analyzer = SentimentIntensityAnalyzer()
 
 @udf(result_type='STRING')
@@ -43,13 +28,18 @@ def score_sentiment(text: str) -> float:
         return 0.0
     return float(analyzer.polarity_scores(text)['compound'])
 
-# ----------------------------
-# Main Flink Job
-# ----------------------------
 def main():
-    # Create streaming TableEnvironment
     settings = EnvironmentSettings.in_streaming_mode()
     table_env = TableEnvironment.create(settings)
+
+    broker = os.getenv("KAFKA_BROKER", "broker:29092")
+    topic_in = os.getenv("KAFKA_TOPIC", "tiktok_comments")
+    topic_out = os.getenv("KAFKA_TOPIC_PROCESSED", "tiktok_comments_enriched")
+    es_host = os.getenv("ES_HOST", "http://elasticsearch:9200")
+    es_index = os.getenv("ES_INDEX", "tiktok_comments")
+    postgres_url = os.getenv("POSTGRES_URL", "jdbc:postgresql://postgres:5432/airflow")
+    postgres_user = os.getenv("POSTGRES_USER", "airflow")
+    postgres_password = os.getenv("POSTGRES_PASSWORD", "airflow")
 
     # ----------------------------
     # Source: Kafka JSON
@@ -67,12 +57,16 @@ def main():
       WATERMARK FOR ts_event_utc AS ts_event_utc - INTERVAL '5' SECOND
     ) WITH (
       'connector' = 'kafka',
-      'topic' = '{TOPIC_IN}',
-      'properties.bootstrap.servers' = '{BROKER}',
+      'topic' = '{topic_in}',
+      'properties.bootstrap.servers' = '{broker}',
       'properties.group.id' = 'flink-consumer',
       'scan.startup.mode' = 'latest-offset',
       'format' = 'json',
-      'json.ignore-parse-errors' = 'true'
+      'json.ignore-parse-errors' = 'true',
+      'json.timestamp-format.standard' = 'ISO-8601',
+      'sink.partitioner' = 'fixed',
+      'sink.transactional-id-prefix' = 'kafka-flink-comments_raw',
+      'sink.parallelism' = '1'
     )
     """)
 
@@ -93,10 +87,13 @@ def main():
       sentiment_label STRING
     ) WITH (
       'connector' = 'kafka',
-      'topic' = '{TOPIC_OUT}',
-      'properties.bootstrap.servers' = '{BROKER}',
+      'topic' = '{topic_out}',
+      'properties.bootstrap.servers' = '{broker}',
       'format' = 'json',
-      'json.timestamp-format.standard' = 'ISO-8601'
+      'json.timestamp-format.standard' = 'ISO-8601',
+      'sink.partitioner' = 'fixed',
+      'sink.transactional-id-prefix' = 'kafka-flink-comments_processed',
+      'sink.parallelism' = '1'
     )
     """)
 
@@ -114,14 +111,16 @@ def main():
       lang STRING,
       ts_event_utc TIMESTAMP(3),
       sentiment_score DOUBLE,
-      sentiment_label STRING
+      sentiment_label STRING,
+      PRIMARY KEY (comment_id) NOT ENFORCED
     ) WITH (
       'connector' = 'jdbc',
-      'url' = '{POSTGRES_URL}',
-      'table-name' = 'comments',
-      'username' = '{POSTGRES_USER}',
-      'password' = '{POSTGRES_PASSWORD}',
-      'driver' = 'org.postgresql.Driver'
+      'url' = '{postgres_url}',
+      'table-name' = 'public.comments',
+      'username' = '{postgres_user}',
+      'password' = '{postgres_password}',
+      'driver' = 'org.postgresql.Driver',
+      'sink.parallelism' = '1'
     )
     """)
 
@@ -139,13 +138,16 @@ def main():
       lang STRING,
       ts_event_utc TIMESTAMP(3),
       sentiment_score DOUBLE,
-      sentiment_label STRING
+      sentiment_label STRING,
+      PRIMARY KEY (comment_id) NOT ENFORCED
     ) WITH (
       'connector' = 'elasticsearch-7',
-      'hosts' = '{ES_HOST}',
-      'index' = '{ES_INDEX}',
-      'document-id.key-delimiter' = '-',
-      'document-id.key.fields' = 'comment_id'
+      'hosts' = '{es_host}',
+      'index' = '{es_index}',
+      'document-id.key-delimiter' = '_',
+      'sink.bulk-flush.max-actions' = '1000',
+      'sink.bulk-flush.interval' = '2s',
+      'format' = 'json'
     )
     """)
 
@@ -155,10 +157,12 @@ def main():
     table_env.create_temporary_system_function("label_sentiment", label_sentiment)
     table_env.create_temporary_system_function("score_sentiment", score_sentiment)
 
+
+
     # ----------------------------
     # Insert into Kafka
     # ----------------------------
-    table_env.execute_sql("""
+    kafka_insert_table = """
     INSERT INTO comments_processed
     SELECT
         comment_id,
@@ -172,12 +176,12 @@ def main():
         score_sentiment(text) AS sentiment_score,
         label_sentiment(text) AS sentiment_label
     FROM comments_raw
-    """)
+    """
 
     # ----------------------------
     # Insert into Postgres
     # ----------------------------
-    table_env.execute_sql("""
+    postgres_insert_table = """
     INSERT INTO comments_pg
     SELECT
         comment_id,
@@ -191,12 +195,12 @@ def main():
         score_sentiment(text),
         label_sentiment(text)
     FROM comments_raw
-    """)
+    """
 
     # ----------------------------
     # Insert into Elasticsearch
     # ----------------------------
-    table_env.execute_sql("""
+    elasticsearch_insert_table = """
     INSERT INTO comments_es
     SELECT
         comment_id,
@@ -210,8 +214,21 @@ def main():
         score_sentiment(text),
         label_sentiment(text)
     FROM comments_raw
-    """)
+    """
+
+    # ================================
+    # 5. STATEMENT SET
+    # ================================
+    stmt_set = table_env.create_statement_set()
+    stmt_set.add_insert_sql(kafka_insert_table)
+    stmt_set.add_insert_sql(postgres_insert_table)
+    stmt_set.add_insert_sql(elasticsearch_insert_table)
+
+    stmt_set.execute()
+
 
 if __name__ == "__main__":
     main()
-# ----------------------------
+    # Submit Job
+        #     docker exec -it flink-jobmanager bash -lc \
+        #   "pip install apache-flink vaderSentiment && python /opt/processor/flink_job.py"
