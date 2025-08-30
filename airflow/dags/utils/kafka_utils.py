@@ -1,7 +1,11 @@
 import time
+import logging
 from kafka import KafkaAdminClient
 from kafka.admin import NewTopic
 from kafka.errors import TopicAlreadyExistsError, NoBrokersAvailable
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 def kafka_ready(broker: str, timeout_s: int = 120, interval_s: int = 5) -> bool:
     end = time.time() + timeout_s
@@ -32,6 +36,8 @@ def ensure_kafka_topic_exists(broker: str, topics: list[dict]) -> None:
     if new_topics:
         try:
             admin.create_topics(new_topics=new_topics, validate_only=False)
+            logger.info(f"Created topics: {[t.name for t in new_topics]} successfully")
         except TopicAlreadyExistsError:
+            logger.warning(f"Topics already exist: {[t.name for t in new_topics]}")
             pass
     admin.close()

@@ -4,7 +4,7 @@ import psycopg2
 import os
 import requests
 
-from datetime import timedelta, datetime
+from datetime import time, timedelta, datetime
 from airflow import DAG 
 from airflow.operators.bash import BashOperator
 from airflow.operators.python import PythonOperator, ShortCircuitOperator
@@ -16,7 +16,7 @@ from utils.es_utils import ensure_es_index_exists
 BROKER = os.getenv("KAFKA_BROKER", "broker:29092")
 TOPIC = os.getenv("KAFKA_TOPIC", "tiktok_comments")
 TOPIC_PROCESSED = os.getenv("KAFKA_TOPIC_PROCESSED", "tiktok_comments_processed")
-ES_URL = os.getenv("ES_URL", "http://elasticsearch:9200")
+ES_URL = os.getenv("ES_URL", "http://es-container:9200")
 ES_INDEX = os.getenv("ES_INDEX", "tiktok_comments")
 FLINK_UI = os.getenv("FLINK_JOBMANAGER", "http://flink-jobmanager:8081")
 POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "airflow")
@@ -41,13 +41,17 @@ def check_postgres_data():
     print(f"Postgres has {count} rows ✅")
 
 
-def check_es_data():
-    resp = requests.get(f"{ES_URL}/{ES_INDEX}/_count")
-    resp.raise_for_status()
-    count = resp.json()["count"]
-    if count == 0:
-        raise ValueError("No data in Elasticsearch yet!")
-    print(f"Elasticsearch has {count} documents ✅")
+def check_es_data(max_retries=10, delay=5):
+    for i in range(max_retries):
+        resp = requests.get(f"{ES_URL}/{ES_INDEX}/_count")
+        resp.raise_for_status()
+        count = resp.json()["count"]
+        if count > 0:
+            print(f"✅ Elasticsearch has {count} documents")
+            return
+        print(f"⏳ Waiting for data in Elasticsearch... (try {i+1}/{max_retries})")
+        time.sleep(delay)
+    raise ValueError("❌ No data in Elasticsearch after waiting")
 
 def refresh_kibana():
     kibana_url = os.getenv("KIBANA_URL", "http://kibana-container:5601")
@@ -164,7 +168,7 @@ with DAG(
         task_id="run_flink_job",
         bash_command=(
             "docker exec flink-jobmanager "
-            "flink run -d -py /opt/flink/processors/flink_job.py --classpath /opt/flink/lib/custom_elasticsearch_client/*"
+            "flink run -d -py /opt/flink/processors/flink_job.py"
         ),
     )
 
@@ -191,6 +195,7 @@ with DAG(
     check_es = PythonOperator(
         task_id="check_es",
         python_callable=check_es_data,
+        op_kwargs={"max_retries": 10, "delay": 5},
     )
 
 

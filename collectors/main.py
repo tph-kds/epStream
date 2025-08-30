@@ -53,7 +53,8 @@ def mock_fetch_comments():
         "username": "user_test__" + str(uuid.uuid4())[:5],
         "text": "This live is awesome!",
         "lang": "en",
-        "ts_event_utc": datetime.now(timezone.utc).isoformat()
+        "ts_event_utc_ms": int(datetime.now(timezone.utc).timestamp() * 1000),
+        "ts_event": datetime.now(timezone.utc).isoformat()
     }]
 
 

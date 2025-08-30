@@ -7,7 +7,10 @@
             "username": {"type": "keyword"},
             "text": {"type": "text"},
             "lang": {"type": "keyword"},
-            "ts_event_utc": {"type": "date"},
+            "ts_event": {
+                "type": "date",
+                 "format": "strict_date_optional_time||epoch_millis"
+            },
             "sentiment_score": {"type": "float"},
             "sentiment_label": {"type": "keyword"},
             "level": {"type": "keyword"}

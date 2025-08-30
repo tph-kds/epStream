@@ -25,8 +25,8 @@ class CommentSchema(BaseModel):
         default=None,
         description="Language of the comment text"
     )
-    ts_event_utc: datetime = Field(
+    ts_event_utc_ms: int = Field(
         ...,
-        description="Timestamp of the event in UTC",
-        example="2023-10-01T12:00:00Z"
+        description="Timestamp of the event in UTC (milliseconds)",
+        example=1696156800000
     )

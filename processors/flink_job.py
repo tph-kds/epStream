@@ -32,10 +32,13 @@ def main():
     settings = EnvironmentSettings.in_streaming_mode()
     table_env = TableEnvironment.create(settings)
 
+    # table_env.get_config().set("pipeline.classpaths", "file:///opt/flink/lib/custom_elasticsearch_client/elasticsearch-7.17.29.jar;file:///opt/flink/lib/custom_elasticsearch_client/elasticsearch-rest-high-level-client-7.17.29.jar")
+
+
     broker = os.getenv("KAFKA_BROKER", "broker:29092")
     topic_in = os.getenv("KAFKA_TOPIC", "tiktok_comments")
     topic_out = os.getenv("KAFKA_TOPIC_PROCESSED", "tiktok_comments_enriched")
-    es_host = os.getenv("ES_HOST", "http://elasticsearch:9200")
+    es_host = os.getenv("ES_HOST", "http://es-container:9200")
     es_index = os.getenv("ES_INDEX", "tiktok_comments")
     postgres_url = os.getenv("POSTGRES_URL", "jdbc:postgresql://postgres:5432/airflow")
     postgres_user = os.getenv("POSTGRES_USER", "airflow")
@@ -53,17 +56,18 @@ def main():
       username STRING,
       text STRING,
       lang STRING,
-      ts_event_utc TIMESTAMP(3),
-      WATERMARK FOR ts_event_utc AS ts_event_utc - INTERVAL '5' SECOND
+      ts_event_utc_ms BIGINT,
+      ts_event_utc AS TO_TIMESTAMP_LTZ(ts_event_utc_ms, 3),
+      WATERMARK FOR ts_event_utc AS ts_event_utc - INTERVAL '5' SECOND,
+      ts_event TIMESTAMP(3)
     ) WITH (
       'connector' = 'kafka',
       'topic' = '{topic_in}',
       'properties.bootstrap.servers' = '{broker}',
       'properties.group.id' = 'flink-consumer',
-      'scan.startup.mode' = 'latest-offset',
+      'scan.startup.mode' = 'earliest-offset',
       'format' = 'json',
       'json.ignore-parse-errors' = 'true',
-      'json.timestamp-format.standard' = 'ISO-8601',
       'sink.partitioner' = 'fixed',
       'sink.transactional-id-prefix' = 'kafka-flink-comments_raw',
       'sink.parallelism' = '1'
@@ -82,7 +86,7 @@ def main():
       username STRING,
       text STRING,
       lang STRING,
-      ts_event_utc TIMESTAMP(3),
+      ts_event_utc TIMESTAMP_LTZ(3),
       sentiment_score DOUBLE,
       sentiment_label STRING
     ) WITH (
@@ -136,7 +140,7 @@ def main():
       username STRING,
       text STRING,
       lang STRING,
-      ts_event_utc TIMESTAMP(3),
+      ts_event TIMESTAMP(3),
       sentiment_score DOUBLE,
       sentiment_label STRING,
       PRIMARY KEY (comment_id) NOT ENFORCED
@@ -210,7 +214,7 @@ def main():
         username,
         text,
         lang,
-        ts_event_utc,
+        ts_event,
         score_sentiment(text),
         label_sentiment(text)
     FROM comments_raw
