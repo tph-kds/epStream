@@ -16,23 +16,34 @@ class MultiPlatformData(BaseData):
         self.__init_vars__()
 
         # Init client platform
-        self.client: Optional[TikTokLiveClient] = self.init_client()
+        self.client: Optional[TikTokLiveClient] = self._init_client()
 
     def __init_vars__(self):
         print(f"Initializing MultiPlatformData with config: {self.mpd_config}")
         self.platform = self.mpd_config.platform or ""
-        self.tiktok_platform = self.mpd_config.tiktok_platform or ""
-        self.youtube_platform = self.mpd_config.youtube_platform or ""
-        self.facebook_platform = self.mpd_config.facebook_platform or ""
-        print(f"Initialized with tiktok_platform: {self.tiktok_platform}, youtube_platform: {self.youtube_platform}, facebook_platform: {self.facebook_platform}")
+        self.tiktok_platform_config = self.mpd_config.tiktok_platform_config or ""
+        self.youtube_platform_config = self.mpd_config.youtube_platform_config or ""
+        self.facebook_platform_config = self.mpd_config.facebook_platform_config or ""
 
-    def init_client(self) -> Optional[TikTokLiveClient]:
         if self.platform == "tiktok":
-            self.client = self.init_tiktok_client()
+            self.tiktok_platform = TikTokData(self.tiktok_platform_config)
+            print(f"Initialized TikTok platform with config: {self.tiktok_platform_config}")
         elif self.platform == "youtube":
-            self.client = self.init_youtube_client()
+            self.youtube_platform = YouTubeData(self.youtube_platform_config)
+            print(f"Initialized YouTube platform with config: {self.youtube_platform_config}")
         elif self.platform == "facebook":
-            self.client = self.init_facebook_client()
+            self.facebook_platform = FacebookData(self.facebook_platform_config)
+            print(f"Initialized Facebook platform with config: {self.facebook_platform_config}")
+
+    def _init_client(self) -> Optional[TikTokLiveClient]:
+        if self.platform == "tiktok":
+            self.client = self.tiktok_platform.client
+        elif self.platform == "youtube":
+            self.client = self.youtube_platform.client
+        elif self.platform == "facebook":
+            self.client = self.facebook_platform.client
+
+        print(f"Initialized client name is {self.client} for platform: {self.platform}")
 
         return self.client
 
@@ -49,8 +60,8 @@ class MultiPlatformData(BaseData):
 
     def get_data(self):
         if self.platform == "tiktok":
-            return TikTokData.get_data(self.client)
+            return self.tiktok_platform.get_data(self.client)
         elif self.platform == "youtube":
-            return YouTubeData.get_data(self.client)
+            return self.youtube_platform.get_data(self.client)
         elif self.platform == "facebook":
-            return FacebookData.get_data(self.client)
+            return self.facebook_platform.get_data(self.client)
