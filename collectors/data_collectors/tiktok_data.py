@@ -85,7 +85,7 @@ class TikTokData:
     def stop_tiktok_data_collection(self):
         pass
 
-    def get_data(self) -> Dict[str, List[Any]]:
+    def get_data(self) -> CommentSchemaConfigOutput:
         print(f"Getting data for host: {self.host_id}")
         # Access Tiktok API to get the data
         self.client.add_listener(CommentEvent, self.__on_comment)
@@ -96,7 +96,7 @@ class TikTokData:
         print(f"Collected {self.__data_count} comments for host: {self.host_id} successfully.")
         print(f"Total data collected: {len(self.__data_list)}")
 
-        return self.__data_list
+        return CommentSchemaConfigOutput(**self.__data_list)
 
 
     # def get_one_data(self) -> CommentSchemaConfigOutput:
@@ -142,7 +142,7 @@ class TikTokData:
 
 
     # Or, add it manually via "client.add_listener()"
-    async def on_comment(self, event: CommentEvent) -> Dict[str, Any]:
+    async def on_comment(self, event: CommentEvent) -> CommentSchemaConfigOutput:
         # print(f"{event.user.nickname} -> {event.comment}")
         comment = event.comment
         if len(comment) > 10:
@@ -153,7 +153,7 @@ class TikTokData:
             self.__user_ids.append(event.user.display_id)
             self.__comment_ids.append(self.__data_count + str(uuid.uuid4()))
             self.__comments.append(comment)
-            self.__langs.append("en")  # Placeholder for language detection 
+            self.__langs.append("")  # Placeholder for language detection 
             self.__ts_events.append(datetime.now(timezone.utc).isoformat())
             self.__ts_event_utc_mss.append(int(datetime.now(timezone.utc).timestamp() * 1000))
 
@@ -193,3 +193,5 @@ class TikTokData:
             print(f"Stopped client after {self.comment_config.number_of_comments} iterations")
 
             return self.__data_list
+    
+
