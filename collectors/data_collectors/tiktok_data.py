@@ -2,7 +2,7 @@ import os, json, time, uuid
 
 import asyncio
 from datetime import datetime, timezone 
-from config import CommentSchemaConfig, CommentSchemaConfigOutput
+from .config import CommentSchemaConfig, CommentSchemaConfigOutput
 from typing import Optional, Dict, List, Any
 
 from TikTokLive import TikTokLiveClient
@@ -14,7 +14,7 @@ from TikTokLive.events import (
     GiftEvent, 
     FollowEvent, 
     ShareEvent, 
-    ViewerCountUpdateEvent
+    # ViewerCountUpdateEvent
 )
 
 class TikTokData:
@@ -71,16 +71,16 @@ class TikTokData:
             "client_name": self.comment_config.client_name or "tiktok_client"    
         }
 
-    def run_tiktok_data_collection(self):
+    def run_platform_data_collection(self):
         print(f"Starting TikTok data collection for host: {self.host_id}")
         print(f"Platform: {self.platform}")
         print(f"Events: {self.events}")
         print(f"Number of comments to collect: {self.number_of_comments}")
 
-        if self.client:
-            self.client.run()
-        else:
-            print("Failed to initialize TikTok client.")
+        # if self.client:
+        #     self.client.run()
+        # else:
+        #     print("Failed to initialize TikTok client.")
 
     def stop_tiktok_data_collection(self):
         pass
@@ -88,6 +88,7 @@ class TikTokData:
     def get_data(self) -> CommentSchemaConfigOutput:
         print(f"Getting data for host: {self.host_id}")
         # Access Tiktok API to get the data
+        self.client.add_listener(ConnectEvent, self.__on_connect)
         self.client.add_listener(CommentEvent, self.__on_comment)
 
         # Run the client TikTok to get the data
@@ -95,8 +96,20 @@ class TikTokData:
 
         print(f"Collected {self.__data_count} comments for host: {self.host_id} successfully.")
         print(f"Total data collected: {len(self.__data_list)}")
+        print(f"Data collected: {self.__data_list}")
 
-        return CommentSchemaConfigOutput(**self.__data_list)
+        return CommentSchemaConfigOutput(
+            platforms=self.__platforms,
+            stream_ids=self.__stream_ids,
+            usernames=self.__usernames,
+            user_ids=self.__user_ids,
+            comments=self.__comments,
+            langs=self.__langs,
+            comment_ids=self.__comment_ids,
+            ts_events=self.__ts_events,
+            ts_event_utc_mss=self.__ts_event_utc_mss,
+
+        )
 
 
     # def get_one_data(self) -> CommentSchemaConfigOutput:
@@ -134,7 +147,7 @@ class TikTokData:
     #         ts_event = ts_event
     #     )
 
-    async def on_connect(self, event: ConnectEvent):
+    async def __on_connect(self, event: ConnectEvent):
         print(f"Connected to @{event.unique_id} (Room ID: {self.client.room_id}")
         if self.__host_id == "" or self.__stream_id == "":
             self.__host_id = self.client.room_id
@@ -142,16 +155,17 @@ class TikTokData:
 
 
     # Or, add it manually via "client.add_listener()"
-    async def on_comment(self, event: CommentEvent) -> CommentSchemaConfigOutput:
+    async def __on_comment(self, event: CommentEvent) -> CommentSchemaConfigOutput:
         # print(f"{event.user.nickname} -> {event.comment}")
         comment = event.comment
         if len(comment) > 10:
+            await asyncio.sleep(1)
             self.__data_count += 1
             self.__platforms.append(self.platform)
             self.__stream_ids.append(self.__stream_id)
             self.__usernames.append(event.user.nickname)
             self.__user_ids.append(event.user.display_id)
-            self.__comment_ids.append(self.__data_count + str(uuid.uuid4()))
+            self.__comment_ids.append(str(self.__data_count) + str(uuid.uuid4()))
             self.__comments.append(comment)
             self.__langs.append("")  # Placeholder for language detection 
             self.__ts_events.append(datetime.now(timezone.utc).isoformat())
@@ -159,10 +173,10 @@ class TikTokData:
 
             print(f'TESTING {self.__usernames[-1]} - {comment} - {self.__data_count} - {self.__ts_event_utc_mss[-1]} - {self.__ts_events[-1]}')
             print("=======================================")
-            self.__comments.append(comment)
+            # self.__comments.append(comment)
             self.__usernames.append(event.user.nickname)
 
-        if self.__data_count >= self.comment_config.number_of_comments - 1:
+        if self.__data_count >= self.comment_config.number_of_comments:
             await self.client.disconnect()
             await asyncio.sleep(2)
 

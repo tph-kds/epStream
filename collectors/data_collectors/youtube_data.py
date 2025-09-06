@@ -1,4 +1,4 @@
-from base_mpd import BaseData
+from .base_mpd import BaseData
 
 class YouTubeData(BaseData):
     def __init__(self, client):
@@ -6,4 +6,8 @@ class YouTubeData(BaseData):
 
     def get_data(self):
         # Implement YouTube data retrieval logic here
+        pass
+
+    def run_platform_data_collection(self):
+        # Implement YouTube data collection logic here
         pass

@@ -75,14 +75,14 @@ class CleanerModeling:
             config = self.__generate_content_config(),
         )
 
-        # print(f"Response from Gemini Model: {response}")
+        print(f"Response from Gemini Model: {response}")
 
         if not response:
             messages = "Cleaning process failed."
 
         return CleanerModelingOutput(
             cleaned_text={
-                "text": response.parsed.data if response and response.parsed else "",
+                "text": response.parsed.data if response and response.parsed else [],
                 "languages": response.parsed.languages if response and response.parsed else [],
             },
             messages=messages

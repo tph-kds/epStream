@@ -1,18 +1,18 @@
 import os 
 from typing import Optional, List, Dict 
-from base_mpd import BaseData
+from .base_mpd import BaseData
 from collectors.outer_models.config import CleanerModelingInput
 from collectors.outer_models.model import CleanerModeling
-from config import (
+from .config import (
     CommentSchemaConfig, 
     MultiPlatformDataConfig,
     MultiPlatformDataOutput
 )
 
 from TikTokLive import TikTokLiveClient
-from tiktok_data import TikTokData
-from youtube_data import YouTubeData
-from facebook_data import FacebookData
+from .tiktok_data import TikTokData
+from .youtube_data import YouTubeData
+from .facebook_data import FacebookData
 
 from collectors.outer_models import (
     CleanerModelingInput, 
@@ -25,10 +25,11 @@ from collectors.outer_models import (
 
 class MultiPlatformData(BaseData):
     def __init__(self, mpd_config: MultiPlatformDataConfig):
-        super(self.__class__, self).__init__()
+        super(MultiPlatformData, self).__init__(config=mpd_config)
         self.mpd_config = mpd_config
         self.__init_vars__()
 
+        self.__main_platform = None
         # Init client platform
         self.client: Optional[TikTokLiveClient] = self._init_client()
 
@@ -50,30 +51,43 @@ class MultiPlatformData(BaseData):
             print(f"Initialized Facebook platform with config: {self.facebook_platform_config}")
 
     def _init_client(self) -> Optional[TikTokLiveClient]:
+        __main_platform = None
+        
         if self.platform == "tiktok":
             self.client = self.tiktok_platform.client
+            __main_platform = self.tiktok_platform
         elif self.platform == "youtube":
             self.client = self.youtube_platform.client
+            __main_platform = self.youtube_platform
         elif self.platform == "facebook":
             self.client = self.facebook_platform.client
+            __main_platform = self.facebook_platform
 
         print(f"Initialized client name is {self.client} for platform: {self.platform}")
+
+        self.__main_platform = __main_platform
 
         return self.client
 
     def run_data_collection(self) -> MultiPlatformDataOutput:
-        print(f"Starting data collection for host: {self.host_id}")
-        print(f"Platform: {self.platform}")
-        print(f"Events: {self.events}")
-        print(f"Number of comments to collect: {self.number_of_comments}")
-        print(f"Be ready for data collection!")
+        self.__main_platform.run_platform_data_collection()
 
-        original_comments_data = self.tiktok_platform.get_data()
-        print(f"Successfully collected comments data")
-        cleaned_comments_data = self.__cleaned_data(original_comments_data)
+        original_comments_data = self.__main_platform.get_data()
+        print(f"Successfully collected comments data: {original_comments_data}")
+        cleaned_comments_data = self.__cleaned_data(comments_data=original_comments_data)
         print(f"Your system have cleaned data output successfully.")   
              
-        return MultiPlatformDataOutput(**cleaned_comments_data)
+        return MultiPlatformDataOutput(
+            comment_ids=cleaned_comments_data.comment_ids,
+            platforms=cleaned_comments_data.platforms,
+            stream_ids=cleaned_comments_data.stream_ids,
+            usernames=cleaned_comments_data.usernames,
+            user_ids=cleaned_comments_data.user_ids,
+            comments=cleaned_comments_data.comments,
+            langs=cleaned_comments_data.langs,
+            ts_events=cleaned_comments_data.ts_events,
+            ts_event_utc_mss=cleaned_comments_data.ts_event_utc_mss,
+        )
 
 
     def stop_data_collection(self):
@@ -91,29 +105,32 @@ class MultiPlatformData(BaseData):
     
 
     def __cleaned_data(self, comments_data: MultiPlatformDataOutput) -> MultiPlatformDataOutput:
+        print(f"Cleaning comments data: {comments_data.comments}")
         # Call the outer model to clean the data
-        output_cleaned = self.__call_outer_model(comments_data["comments"])
+        output_cleaned = self.__call_outer_model(cleaned_data=comments_data.comments)
+
+        print(f"Successfully cleaned comments data: {output_cleaned}")
         
         # Hanlding the original dict output after calling 
         # # Insert all languages into the output
-        for key, value in comments_data.items():
-            if key == "langs":
-                # Delete all data in langs
-                comments_data[key] = []
-                # Insert all languages into the output
-                comments_data["langs"] = output_cleaned.cleaned_text["languages"]
-        # Insert into comments_data with a new attribute: "comments"
-        comments_data["comments"] = output_cleaned.cleaned_text["text"]
+        # Convert to dict
+        comments_dict = comments_data.model_dump()
+        # Update langs and comments with cleaned output
+        comments_dict.update({
+            "langs": output_cleaned.cleaned_text["languages"],
+            "comments": output_cleaned.cleaned_text["text"],
+        })
 
-        return MultiPlatformDataOutput(**comments_data)
+        return MultiPlatformDataOutput(**comments_dict)
 
 
     def __call_outer_model(
             self, 
             cleaned_data: List[str],
-            prompt_input_user: Optional[str]
+            prompt_input_user: Optional[str] = ""
     ) -> CleanerModelingOutput:
-        prompt_input = prompt_input_user + "In addition, let's clean up the following data below: " + "[ " + ", ".join(cleaned_data) + " ]"
+        prompt_input = prompt_input_user + "let's clean up the following data below: " + "[ " + ", ".join(cleaned_data) + " ]"
+        print(f"Prompt Input: {prompt_input}")
         cleaner_model_config = CleanerModelingInput(
             gemini_api_key=os.getenv("GEMINI_API_KEY"),
             model_name=os.getenv("GEMINI_MODEL_NAME", "gemini-2.0-flash-001"),

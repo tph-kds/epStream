@@ -1,3 +1,4 @@
+from typing import Any, Dict
 import os, json, time, uuid
 import logging
 
@@ -6,6 +7,11 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] - %(message)s"
 )
 logger = logging.getLogger(__name__)
+
+from data_collectors import (
+    MultiPlatformData,
+    MultiPlatformDataConfig
+)
 
 from datetime import datetime, timezone
 from dotenv import load_dotenv
@@ -57,7 +63,20 @@ def mock_fetch_comments():
         "ts_event": datetime.now(timezone.utc).isoformat()
     }]
 
+def fetch_and_cleaned_comments(inputs: Dict[str, Any]) -> CommentSchema:
+    # Fetch comments from the target platform such as TikTok, YouTube, Facebook
+    multiplatform_data = MultiPlatformData(
+        mpd_config=MultiPlatformDataConfig(
+            platform = inputs["platform"],
+            tiktok_platform_config=inputs["tiktok_platform_config"],
+            youtube_platform_config=inputs["youtube_platform_config"],
+            facebook_platform_config=inputs["facebook_platform_config"]
+        ),
+    )
 
+    comments_data = multiplatform_data.run_data_collection()
+
+    return [CommentSchema(**comment) for comment in comments_data]
 
 def main():
     for i in range(2):
