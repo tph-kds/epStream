@@ -65,5 +65,14 @@ class CliInitialization(argparse.Namespace):
             default=["comment"],
             help="List of events associated with the information to be collected (e.g., comment, like, share, gifted, ...)"
         )
+        
+        parser.add_argument(
+            "--output-file",
+            "-o",
+            type=str,
+            default="examples/logs/test.json",
+            nargs="?",
+            help="Output data to a file (default: examples/logs/test.json)"
+        )
 
         return parser

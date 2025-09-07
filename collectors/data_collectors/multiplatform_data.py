@@ -129,8 +129,8 @@ class MultiPlatformData(BaseData):
             cleaned_data: List[str],
             prompt_input_user: Optional[str] = ""
     ) -> CleanerModelingOutput:
-        prompt_input = prompt_input_user + "let's clean up the following data below: " + "[ " + ", ".join(cleaned_data) + " ]"
-        print(f"Prompt Input: {prompt_input}")
+        prompt_input = prompt_input_user + "\n{\n    'text': " + "[ " + ", ".join(f"'{item}'" for item in cleaned_data) + " ] \n}"
+        print(f"\nPrompt Input: {prompt_input}\n")
         cleaner_model_config = CleanerModelingInput(
             gemini_api_key=os.getenv("GEMINI_API_KEY"),
             model_name=os.getenv("GEMINI_MODEL_NAME", "gemini-2.0-flash-001"),

@@ -126,6 +126,8 @@ if __name__ == "__main__":
         comments = fetch_and_cleaned_comments(inputs)
 
     print(comments)
+
 # @bobim.pubgm
 # @bacgau1989
+# @nhotv12345
 # uv run tests/test_collectors/test_fetch_and_cleaned_comments.py -p tiktok -hi @bobim.pubgm -nc 10 -cn tiktok_client

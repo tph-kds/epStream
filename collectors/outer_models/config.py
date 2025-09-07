@@ -13,7 +13,7 @@ class CleanerModelingInput(BaseModel):
     top_k: Optional[int] = Field(20, description="Top-k sampling")
     candidate_count: Optional[int] = Field(1, description="Number of response candidates to generate")
     seed: Optional[int] = Field(5, description="Random seed for reproducibility")
-    max_output_tokens: Optional[int] = Field(100, description="Maximum number of tokens in the output")
+    max_output_tokens: Optional[int] = Field(1024, description="Maximum number of tokens in the output")
     stop_sequences: Optional[List[str]] = Field(default_factory=list, description="List of stop sequences")
     presence_penalty: Optional[float] = Field(0.0, description="Presence penalty")
     frequency_penalty: Optional[float] = Field(0.0, description="Frequency penalty")
