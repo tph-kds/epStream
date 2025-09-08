@@ -57,7 +57,7 @@ This project demonstrates how to combine **streaming, data storage, AI/ML sentim
 ---
 
 ## 🏗️ System Architecture
-[https://link.com]()
+![Architecture](./docs/assets/EpStream_Project_Architecture.svg)
 
 
 
@@ -81,14 +81,18 @@ This project demonstrates how to combine **streaming, data storage, AI/ML sentim
 emotional-pulse-stream/
 ├── airflow/                # Airflow DAGs & configs
 │   └── dags/
-├── flink/                  # Flink jobs (Python)
-│   └── sentiment_job.py
-├── kafka/                  # Kafka configs
-│   └── docker-compose.yml
-├── crawler/                # Livestream API crawler
-│   └── tiktok_crawler.py
+├── dockers/                  
+│   └── flink/              # Flink jobs (Python)
+│        └── sentiment_job.py
+
+│   └── kafka/                  # Kafka configs
+│   │    └── Dockerfile
+├── collectors/                # Livestream API comment's crawler
+│   └── main.py
 ├── models/                 # Sentiment models / ML
 │   └── sentiment_model.pkl
+├── tests/                 # Testing services by manually running
+│   └── test_....py
 ├── monitoring/             # Prometheus + Grafana configs
 ├── storage/                # PostgreSQL, Elasticsearch configs
 ├── docker-compose.yml      # Master docker-compose file
@@ -109,8 +113,8 @@ emotional-pulse-stream/
 
 1. Clone Repository
 ```bash
-git clone https://github.com/your-username/emotional-pulse-stream.git
-cd emotional-pulse-stream
+git clone https://github.com/tph-kds/epStream
+cd epStream
 ```
 
 2. Set up the Python environment:
