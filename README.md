@@ -57,7 +57,7 @@ This project demonstrates how to combine **streaming, data storage, AI/ML sentim
 ---
 
 ## 🏗️ System Architecture
-[https://link.com]()
+![Architecture](./docs/assets/EpStream_Project_Architecture.svg)
 
 
 
@@ -81,12 +81,14 @@ This project demonstrates how to combine **streaming, data storage, AI/ML sentim
 emotional-pulse-stream/
 ├── airflow/                # Airflow DAGs & configs
 │   └── dags/
-├── flink/                  # Flink jobs (Python)
-│   └── sentiment_job.py
-├── kafka/                  # Kafka configs
-│   └── docker-compose.yml
-├── crawler/                # Livestream API crawler
-│   └── tiktok_crawler.py
+├── dockers/                  
+│   └── flink/              # Flink jobs (Python)
+│        └── sentiment_job.py
+
+│   └── kafka/                  # Kafka configs
+│   │    └── Dockerfile
+├── collectors/                # Livestream API comment's crawler
+│   └── main.py
 ├── models/                 # Sentiment models / ML
 │   └── sentiment_model.pkl
 ├── monitoring/             # Prometheus + Grafana configs
