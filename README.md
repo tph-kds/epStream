@@ -91,6 +91,8 @@ emotional-pulse-stream/
 │   └── main.py
 ├── models/                 # Sentiment models / ML
 │   └── sentiment_model.pkl
+├── tests/                 # Testing services by manually running
+│   └── test_....py
 ├── monitoring/             # Prometheus + Grafana configs
 ├── storage/                # PostgreSQL, Elasticsearch configs
 ├── docker-compose.yml      # Master docker-compose file
@@ -111,8 +113,8 @@ emotional-pulse-stream/
 
 1. Clone Repository
 ```bash
-git clone https://github.com/your-username/emotional-pulse-stream.git
-cd emotional-pulse-stream
+git clone https://github.com/tph-kds/epStream
+cd epStream
 ```
 
 2. Set up the Python environment:
