@@ -3,8 +3,8 @@ from __future__ import annotations
 import psycopg2
 import os
 import requests
-
-from datetime import time, timedelta, datetime
+import time
+from datetime import timedelta, datetime
 from airflow import DAG 
 from airflow.operators.bash import BashOperator
 from airflow.operators.python import PythonOperator, ShortCircuitOperator
@@ -160,7 +160,8 @@ with DAG(
     # Step 5: Start Collector (Tiktok ->  Kafka)
     run_collector = BashOperator(
         task_id = "start_collector",
-        bash_command="python /opt/airflow/collectors/main.py & echo $! > /tmp/collector.pid && sleep 2",
+        # bash_command="export PYTHONPATH=/opt && python /opt/airflow/collectors/main.py & echo $! > /tmp/collector.pid && sleep 2",
+        bash_command="export PYTHONPATH=/opt && python -m collectors.main & echo $! > /tmp/collector.pid && sleep 2",
     )
 
     # Step 5: Submit Flink job
