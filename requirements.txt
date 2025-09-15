@@ -5,7 +5,8 @@ kafka-python==2.2.15
 elasticsearch==9.1.0
 opentelemetry-sdk==1.36.0
 opentelemetry-exporter-otlp==1.36.0
-TikTokLive==5.0.8
+TikTokLive==6.6.0
+# TikTokLive==5.0.8
 psycopg2-binary==2.9.10
 vaderSentiment==3.3.2
 requests==2.32.3

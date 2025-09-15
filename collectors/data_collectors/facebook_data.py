@@ -1,4 +1,4 @@
-from .base_mpd import BaseData
+from collectors.data_collectors.base_mpd import BaseData
 
 class FacebookData(BaseData):
     def __init__(self, client):

@@ -1,18 +1,18 @@
 import os 
 from typing import Optional, List, Dict 
-from .base_mpd import BaseData
+from collectors.data_collectors.base_mpd import BaseData
 from collectors.outer_models.config import CleanerModelingInput
 from collectors.outer_models.model import CleanerModeling
-from .config import (
+from collectors.data_collectors.config import (
     CommentSchemaConfig, 
     MultiPlatformDataConfig,
     MultiPlatformDataOutput
 )
 
 from TikTokLive import TikTokLiveClient
-from .tiktok_data import TikTokData
-from .youtube_data import YouTubeData
-from .facebook_data import FacebookData
+from collectors.data_collectors.tiktok_data import TikTokData
+from collectors.data_collectors.youtube_data import YouTubeData
+from collectors.data_collectors.facebook_data import FacebookData
 
 from collectors.outer_models import (
     CleanerModelingInput, 

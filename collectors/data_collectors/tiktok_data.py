@@ -2,7 +2,7 @@ import os, json, time, uuid
 
 import asyncio
 from datetime import datetime, timezone 
-from .config import CommentSchemaConfig, CommentSchemaConfigOutput
+from collectors.data_collectors.config import CommentSchemaConfig, CommentSchemaConfigOutput
 from typing import Optional, Dict, List, Any
 
 from TikTokLive import TikTokLiveClient

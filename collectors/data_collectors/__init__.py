@@ -1,2 +1,2 @@
-from .multiplatform_data import MultiPlatformData
-from .config import MultiPlatformDataConfig, CommentSchemaConfig
+from collectors.data_collectors.multiplatform_data import MultiPlatformData
+from collectors.data_collectors.config import MultiPlatformDataConfig, CommentSchemaConfig

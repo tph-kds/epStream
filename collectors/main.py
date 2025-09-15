@@ -8,11 +8,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-from .data_collectors import (
+from collectors.data_collectors import (
     MultiPlatformData,
     MultiPlatformDataConfig
 )
-from .cli_init import CliInitialization
+from collectors.cli_init import CliInitialization
 from utils import (
     JsonFile,
     JsonFileConfig
@@ -21,7 +21,7 @@ from utils import (
 from datetime import datetime, timezone
 from dotenv import load_dotenv
 from kafka import KafkaProducer
-from .schema import CommentSchema, CliConfig
+from collectors.schema import CommentSchema, CliConfig
 
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
@@ -170,9 +170,13 @@ def init():
     else:
         comments = fetch_and_cleaned_comments(inputs)
     
-    if args.output:
-        source_path = args.output.split("/")[:-1]
-        file_name = args.output.split("/")[-1]
+    if args.output_file:
+        source_path = "/".join(args.output_file.split("/")[:-1])
+        print(f"source_path: {source_path}")
+        # Create a new folder if it doesn't exist
+        if not os.path.exists(source_path):
+            os.makedirs(source_path)
+        file_name = args.output_file.split("/")[-1].split(".")[0] + "_" + str(uuid.uuid4().hex) + "_" + str(datetime.now().strftime("%Y%m%d%H%M%S")) + ".json"
         json_config = JsonFileConfig(source_path=source_path, file_name=file_name)
         json_file = JsonFile(json_config=json_config)
         json_file.save_json({"comments_data": comments})

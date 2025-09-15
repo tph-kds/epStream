@@ -1,6 +1,6 @@
 import argparse
 from typing import List
-from .schema import CliConfig
+from collectors.schema import CliConfig
 
 class CliInitialization(argparse.Namespace):
     def __init__(self, cli_config: CliConfig, **kwargs):
@@ -30,7 +30,7 @@ class CliInitialization(argparse.Namespace):
             "-p",
             type=str,
             choices=["tiktok", "youtube", "facebook"],
-            required=True,
+            # required=True,
             default="tiktok",
             help="Target platform to collect data from (required)"
         )
@@ -38,9 +38,10 @@ class CliInitialization(argparse.Namespace):
             "--host_id",
             "-hi",
             type=str,
-            required=True,
+            # required=True,
             # default="@bacgau1989",
-            default="@bobim.pubgm",
+            # default="@bobim.pubgm",
+            default="@realpewpew",
             help="Unique identifier for the host user who organized the stream (e.g., user123) (required)"
         )
         parser.add_argument(
@@ -68,7 +69,7 @@ class CliInitialization(argparse.Namespace):
         )
         
         parser.add_argument(
-            "--output-file",
+            "--output_file",
             "-o",
             type=str,
             default="examples/logs/test.json",

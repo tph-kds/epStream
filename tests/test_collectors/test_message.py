@@ -33,7 +33,7 @@ comments_data = {
 }
 
 # Create the client
-client: TikTokLiveClient = TikTokLiveClient(unique_id="@bacgau1989")
+client: TikTokLiveClient = TikTokLiveClient(unique_id="@realpewpew")
 
 
 # Listen to an event with a decorator!
