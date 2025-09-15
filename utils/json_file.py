@@ -4,7 +4,7 @@ from typing import Optional, List, Dict
 
 class JsonFileConfig(BaseModel):
     source_path: str = Field(..., description="Path to the source file")
-    file_name: Optional[str] = Field(..., description="Name of the file")
+    file_name: Optional[str] = Field(description="Name of the file")
 
 class JsonFile:
     def __init__(self, json_config: JsonFileConfig):

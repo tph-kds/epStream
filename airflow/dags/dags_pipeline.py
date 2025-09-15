@@ -160,8 +160,9 @@ with DAG(
     # Step 5: Start Collector (Tiktok ->  Kafka)
     run_collector = BashOperator(
         task_id = "start_collector",
-        # bash_command="export PYTHONPATH=/opt && python /opt/airflow/collectors/main.py & echo $! > /tmp/collector.pid && sleep 2",
-        bash_command="export PYTHONPATH=/opt && python -m collectors.main & echo $! > /tmp/collector.pid && sleep 2",
+        env={"PYTHONPATH": "/opt/airflow"},
+        bash_command="python /opt/airflow/collectors/main.py & echo $! > /tmp/collector.pid && sleep 2",
+        # bash_command="python -m collectors.main & echo $! > /tmp/collector.pid && sleep 2",
     )
 
     # Step 5: Submit Flink job

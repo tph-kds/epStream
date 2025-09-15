@@ -83,6 +83,8 @@ x-airflow-common:
     - ${AIRFLOW_PROJ_DIR:-.}/airflow/config:/opt/airflow/config
     - ${AIRFLOW_PROJ_DIR:-.}/airflow/plugins:/opt/airflow/plugins
     - ${AIRFLOW_PROJ_DIR:-.}/collectors:/opt/airflow/collectors
+    - ${AIRFLOW_PROJ_DIR:-.}/utils:/opt/airflow/utils
+    - ${AIRFLOW_PROJ_DIR:-.}/.env:/opt/airflow/.env
     - ${AIRFLOW_PROJ_DIR:-.}/storages/elasticsearch/mapping.json:/opt/elasticsearch/mapping.json
     - ${AIRFLOW_PROJ_DIR:-.}/processors:/opt/flink/processors
     - ${AIRFLOW_PROJ_DIR:-.}/storages/postgres:/opt/database
