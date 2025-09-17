@@ -101,8 +101,8 @@ def fetch_and_cleaned_comments(inputs: Dict[str, Any]) -> CommentSchema:
             stream_id=sid,
             user_id=uid,
             username=uname,
-            # text=text,
-            comment=comment,
+            text=comment,
+            # comment=comment,
             lang=lang,
             ts_event_utc_ms=ts_ms,
             ts_event=ts

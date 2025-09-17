@@ -40,8 +40,8 @@ class CliInitialization(argparse.Namespace):
             type=str,
             # required=True,
             # default="@bacgau1989",
-            # default="@bobim.pubgm",
-            default="@realpewpew",
+            default="@bobim.pubgm",
+            # default="@realpewpew",
             help="Unique identifier for the host user who organized the stream (e.g., user123) (required)"
         )
         parser.add_argument(
